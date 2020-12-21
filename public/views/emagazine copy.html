@@ -1,0 +1,211 @@
+<h2> e-magazine</h2>
+
+<hr/>
+<div class="row">
+
+    <div class="col-lg-5">
+        <h4>Add new Magazine</h4>
+
+        <form>
+            <div class="form-group">
+                <label for = "magazine-title">Title</label>
+                <input type="text" class="form-control" id="magazine-title" />
+            
+                <div class="invalid-feedback">
+                    Please Enter the Magazine Title
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for = "magazine-publisher">Publisher</label>
+                <input type="text" class="form-control" id="magazine-publisher" />
+                
+                <div class="invalid-feedback">
+                    Please Enter the Magazine Publisher
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for = "magazine-semester">Semester(Autumn/Spring),Year</label>
+                <input type="text" class="form-control" id="magazine-semester" />
+            
+                <div class="invalid-feedback">
+                    Please Enter the Magazine Published Year
+                </div>
+            </div>
+
+            
+            <div class="form-group">
+                <label for = "magazine-thumbnail">Thumbnail</label>
+                <input type="file" class="form-control" id="magazine-thumbnail" />
+
+                <div class="invalid-feedback">
+                    Please Choose valid Thumbnail
+                </div>
+            </div>
+
+            <div class="form-group">
+                <img id="selected-thumbnail" width="150" height="150" src="#"/>
+            </div>
+
+            <div class="form-group">
+                <label for = "magazine-file">File</label>
+                <input type="file" class="form-control" id="magazine-file" />
+
+            </div>
+
+            <div class="form-group">
+                <div class="progress">
+                    <div class="progress-bar" id="upload-progress" style="width: 0%">
+                        0%
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+               
+                <button id="save-magazine" type="button" class="btn btn-primary">Save</button>
+            </div>
+
+        </form>
+        <div id = "result">
+
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <h4>Saved Magazines</h4>
+    </div>
+
+</div>
+
+<script>
+
+    var validImageTypes = ["image/jpeg","image/png","image/jpg"];
+
+
+    $("#selected-thumbnail").hide();
+
+    function previewThumbnail(thumbnail){
+        if(thumbnail.files && thumbnail.files[0]){
+            var reader = new FileReader();
+
+            reader.onload = function(e){
+                $("#selected-thumbnail").attr('src',e.target.result);
+                
+                $("#selected-thumbnail").fadeIn();
+
+            }
+
+            reader.readAsDataURL(thumbnail.files[0]);
+        }
+    }
+
+    $("#magazine-thumbnail").change(function(){
+        previewThumbnail(this);
+    });
+
+    $("#save-magazine").click(function(){
+       
+        $("#magazine-title").removeClass("is-invalid");
+        $("#magazine-publisher").removeClass("is-invalid");
+        $("#magazine-semester").removeClass("is-invalid");
+        $("#magazine-thumbnail").removeClass("is-invalid");
+        $("#magazine-thumbnail").removeClass("is-invalid");
+              
+
+        var magazine_title = $("#magazine-title").val();
+        var magazine_publisher = $("#magazine-publisher").val();
+        var magazine_semester = $("#magazine-semester").val();
+        var magazine_thumbnail = $("#magazine-thumbnail").prop("files")[0];
+        var magazine_file = $("#magazine-file").prop("files")[0];
+       
+        if(!magazine_title){
+            $("#magazine-title").addClass("is-invalid");
+            return;
+        }
+        if(!magazine_publisher){
+            $("#magazine-publisher").addClass("is-invalid");
+            return;
+        }
+        if(!magazine_semester){
+            $("#magazine-semester").addClass("is-invalid");
+            return;
+        }
+        if(magazine_thumbnail == null){
+            $("#magazine-thumbnail").addClass("is-invalid");
+            return;
+        }
+        if($.inArray(magazine_thumbnail["type"],validImageTypes)<0){
+            $("#magazine-thumbnail").addClass("is-invalid");
+            return;
+        }
+
+        //create database
+
+        var database = firebase.database().ref("magazine/" + magazine_title);
+
+        database.once("value").then(function(snapshot){
+
+             //geting the thumbnail name and getting the extension
+            var thumb_name = magazine_thumbnail["name"];
+            var thumb_ext = thumb_name.substring(thumb_name.lastIndexOf("."),thumb_name.length);
+            var unique_thumb_name = new Date().getTime();
+
+
+            var file_name = magazine_file["name"];
+            var file_ext = file_name.substring(file_name.lastIndexOf("."),file_name.length);
+            var unique_file_name = new Date().getTime();
+
+            var arr = [unique_thumb_name + thumb_ext,file_name + file_ext];
+            var storageRef = firebase.storage().ref(magazine_title + "/" + unique_thumb_name + thumb_ext + "-" + file_name );
+            //storageRef = firebase.storage().ref(magazine_title + "/" +  file_name);
+        
+            //uploadinf file
+            var uploadTaskThumbnail = storageRef.put(magazine_thumbnail);
+
+            var uploadTaskFile = storageRef.put(magazine_file);
+
+            //progress
+
+            uploadTaskFile.on("state_changed",
+            
+                function progress(snapshot){
+                    var percentage = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+
+                    $("#upload-progress").html(percentage + "%");
+                    $("#upload-progress").attr("style", "width:" + percentage + "%");
+
+                },
+                function error(err){
+
+                },
+                function complete(){
+                    var thumbnailUrl = uploadTaskThumbnail.snapshot.downloadURL;
+                    var fileUrl = uploadTaskFile.snapshot.downloadURL;
+                
+                    var magazine = {
+                        "thumbnail" : thumbnailUrl,
+                        "file" : fileUrl,
+                        "magazineTitle" : magazine_title,
+                        "magazinePublisher" : magazine_publisher,
+                        "semester" : magazine_semester
+                    };
+
+                    database.set(magazine, function(err){
+
+                        if(err){
+                            $("#result").attr("class","alert alert-danger");
+                            $("#result").html(err.message);
+                        }else{
+                            
+                            $("#result").attr("class","alert alert-success");
+                            $("#result").html("Added");
+                        }
+                    });
+                }
+            );
+        });
+       
+    });
+</script>
